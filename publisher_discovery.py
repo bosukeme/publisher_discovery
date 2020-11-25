@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 import os
 from os.path import join, dirname
 from dotenv import load_dotenv
+from time import sleep 
 
 dotenv_path = join(dirname(__file__), '.env')
 
@@ -628,7 +629,7 @@ def process_all_functions(unique_countries, country_publisher_dict):
                 
                 
                 print(potential_publisher_df)
-                
+                sleep(600)
             except Exception as e:
                 print(e)
                 pass
