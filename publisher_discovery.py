@@ -629,10 +629,12 @@ def process_all_functions(unique_countries, country_publisher_dict):
                 
                 
                 print(potential_publisher_df)
-                sleep(600)
+                
             except Exception as e:
                 print(e)
                 pass
+
+        sleep(600)
 
 
 
