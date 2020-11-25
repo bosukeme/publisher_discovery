@@ -1,0 +1,9 @@
+Flask
+flask_restful
+Werkzeug
+python-dotenv
+pandas
+twint
+nest_asyncio
+urllib
+uwsgi
