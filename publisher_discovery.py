@@ -14,6 +14,15 @@ from langdetect import detect
 import urllib
 import cv2
 import numpy as np
+<<<<<<< HEAD
+
+
+
+
+geolocator = Nominatim(user_agent = "geoapiExercises") 
+
+=======
+>>>>>>> ec20b3e5b8576ae92750f035bc4d0fdae8b633ef
 
 
 
@@ -21,10 +30,14 @@ import numpy as np
 geolocator = Nominatim(user_agent = "geoapiExercises") 
 
 
-dotenv_path = join(dirname(__file__), '.env')
+# dotenv_path = join(dirname(__file__), '.env')
 
-load_dotenv(dotenv_path)
-MONGO_URL = os.environ.get('MONGO_URL')
+# load_dotenv(dotenv_path)
+# MONGO_URL = os.environ.get('MONGO_URL')
+# client= MongoClient(MONGO_URL, connect=False)
+# db = client.publisher_discovery
+
+MONGO_URL = "mongodb+srv://bloverse:b1XNYDtSQNEv5cAn@bloverse-production.fbt75.mongodb.net/blovids?retryWrites=true&w=majority" #os.environ.get('MONGO_URL')
 client= MongoClient(MONGO_URL, connect=False)
 db = client.publisher_discovery
 
@@ -623,13 +636,13 @@ def sort_account_age(potential_publisher_df):
 
 
 def save_publisher_df(potential_publisher_df):
-    potential_publisher_df_collection = db.potential_publisher_df_collection
+    potential_publisher_df_collections = db.potential_publisher_df_collections
     
-    cur = potential_publisher_df_collection.find() ##check the number before adding
+    cur = potential_publisher_df_collections.find() ##check the number before adding
     print('We had %s potential_publisher entries at the start' % cur.count())
     
     ##search for the entities in the processed colection and store it as a list
-    potential_publisher_list = list(potential_publisher_df_collection.find({},{ "_id": 0, "user_handle": 1})) 
+    potential_publisher_list = list(potential_publisher_df_collections.find({},{ "_id": 0, "user_handle": 1})) 
     potential_publisher_list = list((val for dic in potential_publisher_list for val in dic.values()))
     
     
@@ -645,7 +658,7 @@ def save_publisher_df(potential_publisher_df):
                                                 'account_age','country', 'date_time', 'publication_country', 'lang_bio', 'primary_color', 'secondary_color']].itertuples(index=False): 
         
         if user_handle not in potential_publisher_list:
-            potential_publisher_df_collection.insert_one({"user_id":user_id, 'user_handle':user_handle, 'user_name':user_name,
+            potential_publisher_df_collections.insert_one({"user_id":user_id, 'user_handle':user_handle, 'user_name':user_name,
                                                           'user_bio':user_bio, 'profile_image_url':profile_image_url, 'url':url,
                                                           'join_date':join_date, 'location':location, 'following':following, 
                                                           'follower':follower, 'verified':verified, 'avg_daily_post':avg_daily_post, 
@@ -654,7 +667,7 @@ def save_publisher_df(potential_publisher_df):
                                                           'date_time':date_time, 'publication_country':publication_country, 'lang_bio':lang_bio,
                                                          'primary_color':primary_color, 'secondary_color':secondary_color})
             
-    cur = potential_publisher_df_collection.find() ##check the number after adding
+    cur = potential_publisher_df_collections.find() ##check the number after adding
     print('We have %s potential_publisher entries at the end' % cur.count())
     
 
