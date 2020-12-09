@@ -14,33 +14,15 @@ from langdetect import detect
 import urllib
 import cv2
 import numpy as np
-<<<<<<< HEAD
-
-
-
 
 geolocator = Nominatim(user_agent = "geoapiExercises") 
 
-=======
->>>>>>> ec20b3e5b8576ae92750f035bc4d0fdae8b633ef
+dotenv_path = join(dirname(__file__), '.env')
 
-
-
-
-geolocator = Nominatim(user_agent = "geoapiExercises") 
-
-
-# dotenv_path = join(dirname(__file__), '.env')
-
-# load_dotenv(dotenv_path)
-# MONGO_URL = os.environ.get('MONGO_URL')
-# client= MongoClient(MONGO_URL, connect=False)
-# db = client.publisher_discovery
-
-MONGO_URL = "mongodb+srv://bloverse:b1XNYDtSQNEv5cAn@bloverse-production.fbt75.mongodb.net/blovids?retryWrites=true&w=majority" #os.environ.get('MONGO_URL')
+load_dotenv(dotenv_path)
+MONGO_URL = os.environ.get('MONGO_URL')
 client= MongoClient(MONGO_URL, connect=False)
 db = client.publisher_discovery
-
 
 nest_asyncio.apply()
 
