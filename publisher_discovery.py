@@ -9,6 +9,17 @@ import os
 from os.path import join, dirname
 from dotenv import load_dotenv
 from time import sleep 
+from geopy.geocoders import Nominatim 
+from langdetect import detect
+import urllib
+import cv2
+import numpy as np
+
+
+
+
+geolocator = Nominatim(user_agent = "geoapiExercises") 
+
 
 dotenv_path = join(dirname(__file__), '.env')
 
@@ -16,6 +27,7 @@ load_dotenv(dotenv_path)
 MONGO_URL = os.environ.get('MONGO_URL')
 client= MongoClient(MONGO_URL, connect=False)
 db = client.publisher_discovery
+
 
 nest_asyncio.apply()
 
@@ -121,7 +133,7 @@ last_week_date = datetime.strftime(last_week, '%Y-%m-%d')
 """
 Step 2 - Read in the latest publisher details CSV
 """
-publisher_handles_df = pd.read_csv('/Users/ukeme/Desktop/publisher_discovery/News Aggregator Handles - Initial Focus.csv')
+publisher_handles_df = pd.read_csv('News Aggregator Handles - Initial Focus.csv')
 publisher_countries = list(publisher_handles_df['Country'])
 publisher_twitter_handles = list(publisher_handles_df['Twitter Handle'])
 publisher_dict = dict(zip(publisher_twitter_handles, publisher_countries))
@@ -258,6 +270,56 @@ def similar(a, b):
     return SequenceMatcher(None, a, b).ratio()
 
 
+def url_to_image(url, temp_article_image_path):
+    """
+    This has been updated compared to the previous one to be able to 
+    extract more difficult image links via initialising a browser object.
+    """
+    opener = urllib.request.URLopener()
+    opener.addheader('User-Agent', 'whatever')
+    try:
+        filename, headers = opener.retrieve(url,temp_article_image_path)
+    except:
+        urllib.request.urlretrieve(url,temp_article_image_path)
+    image = cv2.imread(temp_article_image_path)
+    image = cv2.cvtColor(np.uint8(image), cv2.COLOR_BGR2RGB)
+    return image
+
+
+def determine_brand_colours(brand_logo_url):
+    """
+    This function takes in a url for a brand logo image, and then returns the primarly and secondary
+    in hexadecimal based on the colours in the logo image
+    """
+    # Read in the logo image
+    temp_article_image_path = '%s/temp_article_image.jpg' % os.getcwd()
+    logo_image = url_to_image(brand_logo_url, temp_article_image_path)
+    # Get frequency of all colours found in the image
+    colours, count = np.unique(logo_image.reshape(-1,logo_image.shape[-1]), axis=0, return_counts=True)
+    # Sort the colours and get the most common non-white colour as the primary colour
+    sorted_indices = sorted(range(len(count)), key=lambda k: count[k], reverse=True)
+    sorted_indices2 = sorted_indices[0:10]
+    sorted_count = [count[i] for i in sorted_indices2]
+    sorted_colours = [tuple(colours[i]) for i in sorted_indices2]
+    sorted_colours = [colour for colour in sorted_colours if colour != (255, 255, 255)]
+    primary_colour = sorted_colours[0]
+    ## Determine the secondary colour based on how close the primary colour is to being white
+    ## For now the secondary colour is either black or white
+    white = (255,255,255)
+    black = (0,0,0)
+    white_diff = np.subtract(white, primary_colour)
+    if sum(white_diff) > 150:
+        secondary_colour = white
+    else:
+        secondary_colour = black
+#     print(primary_colour)
+    primary_colour_hex = '#%02x%02x%02x' % primary_colour
+#     print(secondary_colour)
+    secondary_colour_hex = '#%02x%02x%02x' % secondary_colour
+    
+    return primary_colour_hex, secondary_colour_hex
+
+
 def process_handles(new_entries_handles):
     """
     Step 6 - Loop through all the potential publication handles and checks for:
@@ -282,6 +344,8 @@ def process_handles(new_entries_handles):
     user_post_link_perc = []
     user_primary_domain = []
     user_potential_score = []
+    primary_colors = []
+    secondary_colors = []
 
     num_to_process = 50
     for i in range(num_to_process): 
@@ -334,6 +398,8 @@ def process_handles(new_entries_handles):
 
                         try:
                             user_profile_image = list(user_df['avatar'])[0]
+                            primary_color , secondary_color = determine_brand_colours(user_profile_image)
+                            
                         except:
                             user_profile_image = 'NA'
 
@@ -415,6 +481,8 @@ def process_handles(new_entries_handles):
                             user_post_link_perc.append(post_w_link_perc)
                             user_primary_domain.append(primary_domain)
                             user_potential_score.append(potential_score)
+                            primary_colors.append(primary_color)
+                            secondary_colors.append(secondary_color)
 
                     except Exception as e:
                         reject_handle_list.append(twitter_handle)
@@ -430,14 +498,15 @@ def process_handles(new_entries_handles):
     return user_id_list, user_handle_list, user_name_list, user_bio_list,\
     user_profile_image_list, user_url_list, user_join_date_list, user_location_list,\
     user_following_list, user_followers_list, user_verified_list, user_avg_daily_posts, \
-    user_post_link_perc, user_primary_domain, user_potential_score, reject_handle_list, processed_handles_list
+    user_post_link_perc, user_primary_domain, user_potential_score, reject_handle_list, processed_handles_list, \
+    primary_colors, secondary_colors
 
 
 
 def create_potential_publisher_df(user_id_list, user_handle_list, user_name_list, user_bio_list,\
                                 user_profile_image_list, user_url_list, user_join_date_list, user_location_list,\
                                 user_following_list, user_followers_list, user_verified_list, user_avg_daily_posts, \
-                                user_post_link_perc, user_primary_domain, user_potential_score):
+                                user_post_link_perc, user_primary_domain, user_potential_score, primary_colors, secondary_colors):
     
     potential_publisher_df = pd.DataFrame()
     potential_publisher_df['user_id'] = user_id_list
@@ -455,6 +524,10 @@ def create_potential_publisher_df(user_id_list, user_handle_list, user_name_list
     potential_publisher_df['link_post_perc'] = user_post_link_perc
     potential_publisher_df['primary_domain'] = user_primary_domain
     potential_publisher_df['potential_score'] = user_potential_score
+    potential_publisher_df['primary_color'] = primary_colors
+    potential_publisher_df['secondary_color'] = secondary_colors
+    
+    
     
     return potential_publisher_df
 
@@ -565,11 +638,11 @@ def save_publisher_df(potential_publisher_df):
         profile_image_url, url, join_date, location, \
         following, follower, verified, avg_daily_post, \
         link_post_perc, primary_domain, potential_score,\
-        account_age in  potential_publisher_df[["user_id", 'user_handle', 'user_name', 'user_bio', 
+        account_age, country, date_time, publication_country, lang_bio, primary_color, secondary_color  in  potential_publisher_df[["user_id", 'user_handle', 'user_name', 'user_bio', 
                                                 'profile_image_url', 'url', 'join_date', 'location', 
                                                 'following', 'follower', 'verified', 'avg_daily_post', 
                                                 'link_post_perc', 'primary_domain', 'potential_score', 
-                                                'account_age']].itertuples(index=False): 
+                                                'account_age','country', 'date_time', 'publication_country', 'lang_bio', 'primary_color', 'secondary_color']].itertuples(index=False): 
         
         if user_handle not in potential_publisher_list:
             potential_publisher_df_collection.insert_one({"user_id":user_id, 'user_handle':user_handle, 'user_name':user_name,
@@ -577,17 +650,34 @@ def save_publisher_df(potential_publisher_df):
                                                           'join_date':join_date, 'location':location, 'following':following, 
                                                           'follower':follower, 'verified':verified, 'avg_daily_post':avg_daily_post, 
                                                           'link_post_perc':link_post_perc, 'primary_domain':primary_domain,
-                                                          'potential_score':potential_score, 'account_age':account_age})
+                                                          'potential_score':potential_score, 'account_age':account_age, 'country':country, 
+                                                          'date_time':date_time, 'publication_country':publication_country, 'lang_bio':lang_bio,
+                                                         'primary_color':primary_color, 'secondary_color':secondary_color})
             
     cur = potential_publisher_df_collection.find() ##check the number after adding
     print('We have %s potential_publisher entries at the end' % cur.count())
     
 
-"""
-Step 4 - Process all the unique countries and get up to 50 latest tweets from each handle
-"""
+
+def get_country_from_location(location):
+    """
+    This function takes in 
+    """
+    if location != 'false':
+        country = geolocator.geocode(location) 
+        if country is not None:
+            country = str(country).split(',')[-1].strip()
+        else:
+            country = 'NA'
+    else:
+        country = 'NA'
+    return country
+
+
+
+
 def process_all_functions(unique_countries, country_publisher_dict):
-    for country in unique_countries[0:2]:
+    for country in unique_countries:
         print(country)
         print("---------")
         publisher_handle_list = country_publisher_dict[country]
@@ -608,36 +698,37 @@ def process_all_functions(unique_countries, country_publisher_dict):
                 user_id_list, user_handle_list, user_name_list, user_bio_list,\
                 user_profile_image_list, user_url_list, user_join_date_list, user_location_list,\
                 user_following_list, user_followers_list, user_verified_list, user_avg_daily_posts, \
-                user_post_link_perc, user_primary_domain, user_potential_score, reject_handle_list, processed_handles_list = process_handles(new_entries_handles)
+                user_post_link_perc, user_primary_domain, user_potential_score, reject_handle_list, \
+                processed_handles_list, primary_colors, secondary_colors = process_handles(new_entries_handles)
                 
                 
                 
                 potential_publisher_df = create_potential_publisher_df( user_id_list, user_handle_list, user_name_list, user_bio_list,\
                                                                         user_profile_image_list, user_url_list, user_join_date_list, user_location_list,\
                                                                         user_following_list, user_followers_list, user_verified_list, user_avg_daily_posts, \
-                                                                        user_post_link_perc, user_primary_domain, user_potential_score)
+                                                                        user_post_link_perc, user_primary_domain, user_potential_score, primary_colors, secondary_colors)
                 
+                potential_publisher_df['country'] = [country for a in range(len(potential_publisher_df))]
+                potential_publisher_df['date_time'] = [datetime.now() for a in range(len(potential_publisher_df))]
+                potential_publisher_df['publication_country'] =  [get_country_from_location(a) for a in potential_publisher_df['location']]
+                potential_publisher_df['lang_bio'] =  [detect(a) for a in potential_publisher_df['user_bio']]
                 
+
                 processed_handles_list = remove_rejected_handles(processed_handles_list, reject_handle_list)
                 processed_handles_list_save_to_mongodb(processed_handles_list)
                 rejected_handles_list_save_to_mongodb(reject_handle_list)
                 
                 potential_publisher_df = sort_account_age(potential_publisher_df)
+                print(potential_publisher_df)
                 
                 save_publisher_df(potential_publisher_df)
                 
                 
                 
                 print(potential_publisher_df)
-                
+                sleep(300)
             except Exception as e:
                 print(e)
                 pass
 
         sleep(600)
-
-
-
-
-
-
